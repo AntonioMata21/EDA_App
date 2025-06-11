@@ -50,7 +50,7 @@ def show_visualization_page(df):
             if pd.api.types.is_numeric_dtype(col_type):
                 viz_type = st.radio(
                     "Tipo de visualización",
-                    ["Histograma", "Boxplot", "Violín", "KDE"],
+                    ["Histograma", "Boxplot", "Violín"],
                     horizontal=True,
                     key="univariate_viz_type_num"
                 )
@@ -64,23 +64,20 @@ def show_visualization_page(df):
                     show_kde = st.checkbox("Mostrar curva KDE", value=True, key="hist_kde")
                     
                     # Generar gráfico
-                    fig = dv.create_histogram(data, col_to_viz, n_bins=n_bins, kde=show_kde)
+                    fig = dv.create_histogram(data, col_to_viz, bins=n_bins, kde=show_kde)
                     st.plotly_chart(fig, use_container_width=True, key="univariate_numerical_hist")
                 
                 elif viz_type == "Boxplot":
                     # Generar gráfico
-                    fig = dv.create_boxplot(data, col_to_viz)
+                    fig = dv.create_boxplot(data, x=None, y=col_to_viz)
                     st.plotly_chart(fig, use_container_width=True, key="univariate_numerical_box")
                 
                 elif viz_type == "Violín":
                     # Generar gráfico
-                    fig = dv.create_violin(data, col_to_viz)
+                    fig = dv.create_violin(data, x=None, y=col_to_viz)
                     st.plotly_chart(fig, use_container_width=True, key="univariate_numerical_violin")
                 
-                elif viz_type == "KDE":
-                    # Generar gráfico
-                    fig = dv.create_kde(data, col_to_viz)
-                    st.plotly_chart(fig, use_container_width=True, key="univariate_numerical_kde")
+
             
             elif pd.api.types.is_object_dtype(col_type) or pd.api.types.is_categorical_dtype(col_type) or pd.api.types.is_string_dtype(col_type):
                 viz_type = st.radio(
@@ -219,7 +216,7 @@ def show_visualization_page(df):
                     )
                     
                     # Generar gráfico
-                    fig = dv.create_scatter(data, x_col, y_col, color_col=color_col)
+                    fig = dv.create_scatter(data, x_col, y_col, color=color_col)
                     st.plotly_chart(fig, use_container_width=True, key="bivariate_scatter_num_num")
                  
                 elif viz_type == "Hexbin":
@@ -525,6 +522,15 @@ def show_visualization_page(df):
                     [None] + [col for col in data.columns if col not in [x_col, y_col, z_col]],
                     key="scatter3d_color_col"
                 )
+                
+                # Seleccionar columna para tamaño (opcional)
+                size_col = st.selectbox(
+                    "Columna para tamaño (opcional)",
+                    [None] + [col for col in data.columns if col not in [x_col, y_col, z_col, color_col]],
+                    key="scatter3d_size_col"
+                )
+
+                title = st.text_input("Enter plot title:", "3D Scatter Plot", key="title_3d_scatter")
                 
                 # Limitar número de filas para rendimiento
                 max_rows = st.slider(

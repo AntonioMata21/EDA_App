@@ -8,6 +8,80 @@ import matplotlib.pyplot as plt
 from fpdf import FPDF
 import os
 
+def export_dataframe_to_csv(df: pd.DataFrame, delimiter=',', include_header=True, encoding='utf-8') -> bytes:
+    """
+    Convierte un DataFrame de Pandas a bytes CSV.
+
+    Args:
+        df: DataFrame de Pandas
+        delimiter: Delimitador a usar en el CSV.
+        include_header: Booleano, si se incluye o no el encabezado.
+        encoding: Codificación del archivo CSV.
+
+    Returns:
+        bytes con los datos CSV
+    """
+    buffer = io.BytesIO()
+    # Cuando se escribe a un buffer de bytes, pandas puede manejar la codificación directamente.
+    # El método to_csv escribirá bytes codificados en el buffer.
+    df.to_csv(buffer, index=False, sep=delimiter, encoding=encoding, header=include_header)
+    csv_bytes = buffer.getvalue() # Esto ya son bytes
+    buffer.close()
+    return csv_bytes
+def export_dataframe_to_excel(df, sheet_name="Dataset", include_index=False):
+    """
+    Convierte un DataFrame de Pandas a un archivo Excel en formato de texto.
+    Args:
+        df: DataFrame de Pandas
+    Returns:
+        BytesIO con los datos Excel
+    """
+    buffer = io.BytesIO()
+    with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
+        df.to_excel(writer, index=include_index, sheet_name=sheet_name)
+    buffer.seek(0)
+    return buffer.getvalue()
+def export_dataframe_to_parquet(df):
+    """Exporta DataFrame a bytes de Parquet."""
+    buffer = io.BytesIO()
+    df.to_parquet(buffer, index=False) # Parquet usualmente no guarda el índice de pandas
+    buffer.seek(0)
+    return buffer.getvalue() # Devuelve bytes
+
+def export_dataframe_to_json(df, orient="records", indent=None):
+    """Exporta DataFrame a una cadena JSON."""
+    # Pandas to_json devuelve una cadena
+    json_string = df.to_json(orient=orient, indent=indent, force_ascii=False)
+    return json_string
+
+# Funciones para estadísticas
+def export_statistics_to_csv(stats_df: pd.DataFrame) -> str: # Anotación de tipo -> str
+    """Exporta DataFrame de estadísticas a una cadena CSV."""
+    buffer = io.StringIO() # Correcto para strings
+    stats_df.to_csv(buffer, index=True, encoding='utf-8') # El índice puede ser útil aquí (nombre de la estadística)
+    csv_string = buffer.getvalue()
+    buffer.close()
+    return csv_string 
+
+def export_statistics_to_excel(stats_df, sheet_name="Statistics"): # Asume stats_df es un DataFrame
+    """Exporta DataFrame de estadísticas a bytes de Excel."""
+    buffer = io.BytesIO()
+    with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
+        stats_df.to_excel(writer, index=True, sheet_name=sheet_name)
+    buffer.seek(0)
+    return buffer.getvalue()
+
+# Funciones para visualizaciones (Plotly)
+def export_plotly_fig_to_image(fig, format="png", width=800, height=600, scale=2):
+    """Exporta una figura Plotly a bytes de imagen (png, jpeg, webp, svg, pdf)."""
+    if format.lower() == "pdf" or format.lower() == "svg": # Formatos vectoriales
+         return fig.to_image(format=format.lower()) # No necesitan width/height/scale de la misma manera
+    return fig.to_image(format=format.lower(), width=width, height=height, scale=scale)
+
+def export_plotly_fig_to_html(fig):
+    """Exporta una figura Plotly a una cadena HTML."""
+    return fig.to_html(full_html=False, include_plotlyjs='cdn')
+
 def export_data(df, format="csv", filename=None):
     """
     Exporta un DataFrame a un archivo en el formato especificado.
@@ -126,7 +200,7 @@ def export_visualization(fig, format="png", filename=None, width=800, height=600
     buffer.seek(0)
     return buffer, f"{filename}.{format.lower()}", mime_type
 
-def generate_report(df, summary, stats, visualizations, filename=None):
+def generate_pdf_report(df, summary, stats, visualizations, filename=None):
     """
     Genera un informe en PDF con los resultados del análisis.
     
@@ -276,4 +350,5 @@ def generate_report(df, summary, stats, visualizations, filename=None):
     buffer.write(pdf.output(dest="S").encode("latin1"))
     buffer.seek(0)
     
-    return buffer, f"{filename}.pdf", "application/pdf"
+    
+    return buffer.getvalue(), f"{filename}.pdf", "application/pdf"

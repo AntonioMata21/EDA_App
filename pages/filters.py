@@ -3,6 +3,8 @@ import pandas as pd
 import numpy as np
 
 def show_filters_page(df):
+    if 'filtered_data' not in st.session_state or st.session_state.filtered_data is None:
+        st.session_state.filtered_data = df
     """
     Muestra la página de filtros y transformaciones del dataset.
     
@@ -188,7 +190,7 @@ def show_filters_page(df):
                 
                 if col_to_convert:
                     # Obtener tipo actual
-                    current_type = df.schema[col_to_convert]
+                    current_type = df[col_to_convert].dtype
                     
                     # Seleccionar nuevo tipo
                     new_type = st.selectbox(

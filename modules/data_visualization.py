@@ -67,8 +67,172 @@ def create_histogram(df, x, bins=30, kde=False, title=None, color=None, facet=No
         df, x=x, color=color, facet_col=facet,
         title=title, nbins=bins,
         height=height, width=width,
-        marginal="box" if kde else None,  # Mostrar boxplot en el margen si kde=True
+        marginal=None, # Remove marginal boxplot
         opacity=0.7,
+    )
+
+    if kde:
+        from scipy.stats import gaussian_kde
+        hist_data = df[x].dropna()
+        if not hist_data.empty:
+            kde_model = gaussian_kde(hist_data)
+            kde_x = np.linspace(hist_data.min(), hist_data.max(), 500)
+            kde_y = kde_model(kde_x)
+
+            total_samples = len(hist_data)
+            bin_width = (hist_data.max() - hist_data.min()) / bins if bins > 0 else 1
+            scale_factor = total_samples * bin_width
+
+            fig.add_trace(
+                go.Scatter(
+                    x=kde_x,
+                    y=kde_y * scale_factor,
+                    mode='lines',
+                    name='KDE',
+                    line=dict(color='red', width=2)
+                )
+            )
+    
+    # Personalizar diseño
+    fig.update_layout(
+        xaxis_title=x,
+        yaxis_title="Frecuencia",
+        legend_title_text=color,
+        template="plotly_white"
+    )
+    
+    return fig
+
+def create_boxplot(df, x=None, y=None, title=None, color=None, points="outliers", height=500, width=700): # x e y ahora son opcionales
+    """
+    Crea un boxplot con Plotly. Puede manejar boxplot de una variable (solo y)
+    o agrupado (x e y).
+    """
+    # Verificar que al menos una columna de valor (x o y para px.box) esté presente
+    if y is None and x is None: # Si no se provee ni x ni y para graficar
+        st.error("Debes proporcionar al menos una columna 'x' (para boxplot horizontal de una variable) o 'y' (para boxplot vertical de una variable).")
+        return None
+    
+    # Verificar columnas si se proporcionan
+    if y is not None and y not in df.columns:
+        st.error(f"La columna '{y}' (para el eje Y) no existe en el DataFrame.")
+        return None
+    if x is not None and x not in df.columns:
+        st.error(f"La columna '{x}' (para el eje X o categoría) no existe en el DataFrame.")
+        return None
+    
+    # Título por defecto
+    if title is None:
+        if x is not None and y is not None: # Caso agrupado o scatter con box
+            title = f"Boxplot de {y} por {x}"
+        elif y is not None: # Boxplot de una variable vertical
+            title = f"Boxplot de {y}"
+        elif x is not None: # Boxplot de una variable horizontal
+            title = f"Boxplot de {x}"
+        else:
+            title = "Boxplot" # No debería llegar aquí si la verificación anterior funciona
+    
+    # Crear boxplot con Plotly
+    # px.box es flexible:
+    # - Si solo 'y' se da, es un boxplot vertical de una variable.
+    # - Si solo 'x' se da (y es numérico), es un boxplot horizontal de una variable.
+    # - Si 'x' (categórico) e 'y' (numérico) se dan, es un boxplot agrupado.
+    fig = px.box(
+        df, x=x, y=y, color=color, # Pasamos x e y como vienen, px.box decide
+        title=title,
+        height=height, width=width,
+        points=points
+    )
+    
+    fig.update_layout(
+        template="plotly_white",
+        # Ajuste de boxmode si se usa color para agrupar en un boxplot de una sola variable
+        boxmode="group" if (x is not None and color is not None) or (y is not None and color is not None and x is None) else "overlay"
+    )
+    
+    return fig
+
+def create_scatter(df, x, y, color=None, size=None, title=None, trendline=None, height=500, width=700):
+    """
+    Crea un gráfico de dispersión con Plotly.
+    """
+    # Verificar columnas
+    if x not in df.columns:
+        st.error(f"La columna {x} no existe en el DataFrame")
+        return None
+    if y not in df.columns:
+        st.error(f"La columna {y} no existe en el DataFrame")
+        return None
+    
+    # Título por defecto
+    if title is None:
+        title = f"Gráfico de dispersión: {y} vs {x}"
+    
+    # Crear scatter plot con Plotly
+    fig = px.scatter(
+        df, x=x, y=y, color=color, size=size,
+        title=title,
+        height=height, width=width,
+        trendline=trendline,  # "ols", "lowess", None
+        opacity=0.7,
+        hover_data=df.columns[:5]  # Mostrar primeras 5 columnas en hover
+    )
+    
+    # Personalizar diseño
+    fig.update_layout(
+        xaxis_title=x,
+        yaxis_title=y,
+        legend_title_text=color,
+        template="plotly_white"
+    )
+    
+    return fig
+
+def create_bar(df, x, y, color=None, title=None, orientation="v", height=500, width=700, aggfunc="sum"):
+    """
+    Crea un gráfico de barras con Plotly.
+    """
+    # Verificar columnas
+    if x not in df.columns:
+        st.error(f"La columna {x} no existe en el DataFrame")
+        return None
+    if y is not None and y not in df.columns:
+        st.error(f"La columna {y} no existe en el DataFrame")
+        return None
+    
+    # Título por defecto
+    if title is None:
+        if y is not None:
+            title = f"Gráfico de barras: {y} por {x}"
+        else:
+            title = f"Gráfico de barras: Conteo de {x}"
+    
+    # Si y es None, hacemos un conteo
+    if y is None:
+        # Crear gráfico de conteo
+        fig = px.histogram(
+            df, x=x, color=color,
+            title=title,
+            height=height, width=width,
+            barmode="group" if color is not None else None
+        )
+    else:
+        # Crear gráfico de barras con agregación
+        fig = px.bar(
+            df, x=x, y=y, color=color,
+            title=title,
+            height=height, width=width,
+            barmode="group" if color is not None else None,
+            orientation=orientation
+        )
+    
+    # Personalizar diseño
+    fig.update_layout(
+        xaxis_title=x,
+        yaxis_title=y if y is not None else "Conteo",
+        legend_title_text=color,
+        template="plotly_white",
+        opacity=0.7
     )
     
     # Personalizar diseño
@@ -81,42 +245,7 @@ def create_histogram(df, x, bins=30, kde=False, title=None, color=None, facet=No
     
     return fig
 
-def create_boxplot(df, x, y, title=None, color=None, points="outliers", height=500, width=700):
-    """
-    Crea un boxplot con Plotly.
-    """
-    # Verificar columnas
-    if y is not None and y not in df.columns:
-        st.error(f"La columna {y} no existe en el DataFrame")
-        return None
-    if x is not None and x not in df.columns:
-        st.error(f"La columna {x} no existe en el DataFrame")
-        return None
-    
-    # Título por defecto
-    if title is None:
-        if x is not None and y is not None:
-            title = f"Boxplot de {y} por {x}"
-        elif y is not None:
-            title = f"Boxplot de {y}"
-        else:
-            title = "Boxplot"
-    
-    # Crear boxplot con Plotly
-    fig = px.box(
-        df, x=x, y=y, color=color,
-        title=title,
-        height=height, width=width,
-        points=points  # "all", "outliers", "suspectedoutliers", False
-    )
-    
-    # Personalizar diseño
-    fig.update_layout(
-        template="plotly_white",
-        boxmode="group" if x is not None and color is not None else "overlay"
-    )
-    
-    return fig
+
 
 def create_scatter(df, x, y, color=None, size=None, title=None, trendline=None, height=500, width=700):
     """
@@ -329,37 +458,50 @@ def create_heatmap(df, columns=None, title=None, height=600, width=800, colorsca
     
     return fig
 
-def create_violin(df, x, y, title=None, color=None, height=500, width=700, box=True):
+def create_violin(df, x=None, y=None, title=None, color=None, height=500, width=700, box=True, points="outliers"): # x e y ahora son opcionales
     """
-    Crea un gráfico de violín con Plotly.
+    Crea un gráfico de violín con Plotly. Puede manejar violín de una variable (solo y)
+    o agrupado (x e y).
     """
-    # Verificar columnas
-    if y not in df.columns:
-        st.error(f"La columna {y} no existe en el DataFrame")
+    # Verificar que al menos una columna de valor (y para px.violin) esté presente
+    # o una columna x para agrupar si y se da.
+    if y is None and x is None: # Necesitamos al menos algo para graficar
+        st.error("Debes proporcionar al menos una columna 'y' (para el valor numérico) o 'x' (para categoría si 'y' está presente).")
+        return None
+    if y is None and x is not None: # Solo x no tiene sentido para px.violin sin y
+        st.error("Para un gráfico de violín, la columna 'y' (valor numérico) es requerida.")
+        return None
+
+    # Verificar columnas si se proporcionan
+    if y is not None and y not in df.columns: # y siempre es requerido si se llama a esta función
+        st.error(f"La columna '{y}' (para el eje Y) no existe en el DataFrame.")
         return None
     if x is not None and x not in df.columns:
-        st.error(f"La columna {x} no existe en el DataFrame")
+        st.error(f"La columna '{x}' (para el eje X o categoría) no existe en el DataFrame.")
         return None
     
     # Título por defecto
     if title is None:
-        if x is not None:
-            title = f"Gráfico de violín: {y} por {x}"
-        else:
-            title = f"Gráfico de violín: {y}"
+        if x is not None and y is not None: # Caso agrupado
+            title = f"Gráfico de violín de {y} por {x}"
+        elif y is not None: # Violín de una variable (y es la variable numérica)
+            title = f"Gráfico de violín de {y}"
+        # No deberíamos llegar a un caso 'else' sin título si las verificaciones anteriores son correctas
     
     # Crear gráfico de violín con Plotly
+    # px.violin necesita 'y' para los valores. 'x' es para la categoría de agrupación.
     fig = px.violin(
-        df, x=x, y=y, color=color,
+        df, x=x, y=y, color=color, # Pasamos x (puede ser None) e y
         title=title,
         height=height, width=width,
-        box=box,  # Mostrar boxplot dentro del violín
-        points="outliers"  # "all", "outliers", "suspectedoutliers", False
+        box=box,
+        points=points
     )
     
     # Personalizar diseño
     fig.update_layout(
         template="plotly_white",
+        # Si x (categoría) y color (subcategoría) están presentes, usa group. Sino, overlay.
         violinmode="group" if x is not None and color is not None else "overlay"
     )
     

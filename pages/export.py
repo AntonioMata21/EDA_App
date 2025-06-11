@@ -80,12 +80,10 @@ def show_export_page(df):
             if st.button("Exportar a CSV", key="export_csv_button"):
                 try:
                     # Generar CSV
-                    csv_data = de.export_dataframe_to_csv(data, delimiter=delimiter, 
-                                                        include_header=include_header, 
-                                                        encoding=encoding)
-                    
-                    # Crear enlace de descarga
-                    b64 = base64.b64encode(csv_data.encode(encoding)).decode()
+                    csv_bytes_data = de.export_dataframe_to_csv(data, delimiter=delimiter, 
+                                        include_header=include_header, 
+                                        encoding=encoding)
+                    b64 = base64.b64encode(csv_bytes_data).decode()
                     href = f'<a href="data:file/csv;base64,{b64}" download="dataset_export_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv">Descargar CSV</a>'
                     st.markdown(href, unsafe_allow_html=True)
                     
@@ -107,11 +105,9 @@ def show_export_page(df):
             if st.button("Exportar a Excel", key="export_excel_button"):
                 try:
                     # Generar Excel
-                    excel_data = de.export_dataframe_to_excel(data, sheet_name=sheet_name, 
-                                                            include_index=include_index)
-                    
-                    # Crear enlace de descarga
-                    b64 = base64.b64encode(excel_data).decode()
+                    excel_bytes = de.export_dataframe_to_excel(data, sheet_name=sheet_name, 
+                                            include_index=include_index)
+                    b64 = base64.b64encode(excel_bytes).decode() # Correcto
                     href = f'<a href="data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,{b64}" download="dataset_export_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx">Descargar Excel</a>'
                     st.markdown(href, unsafe_allow_html=True)
                     
@@ -179,14 +175,42 @@ def show_export_page(df):
         # Opciones según tipo de estadísticas
         if stats_type == "Resumen General":
             # Generar resumen general
-            summary = da.get_data_summary(data)
-            
-            # Mostrar vista previa
+            #summary = da.get_data_summary(data)
+            summary_dict = da.get_data_summary(data) # Asumiendo que esto es un dict
+            if isinstance(summary_dict, dict):
+                # Ajusta esto según la estructura de tu summary_dict
+                # Si es simple {'key1': val1, 'key2': val2}
+                summary_df_for_export = pd.DataFrame(list(summary_dict.items()), columns=['Métrica', 'Valor'])
+    # Si es más complejo, ajusta la creación del DataFrame
+            else: # Si get_data_summary ya puede devolver un DataFrame
+                summary_df_for_export = summary_dict
+
             st.write("**Vista previa:**")
-            st.dataframe(summary, use_container_width=True)
+            st.dataframe(summary_df_for_export, use_container_width=True) # Mostrar el DataFrame
+
+            if st.button("Exportar Resumen", key="export_summary_button"):
+                try:
+                    if export_format == "CSV":
+                        csv_string = de.export_statistics_to_csv(summary_df_for_export) # Pasar el DataFrame
+                        b64 = base64.b64encode(csv_string.encode('utf-8')).decode()
+                        # ... (resto del enlace de descarga)
+                        href = f'<a href="data:file/csv;base64,{b64}" download="resumen_general_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv">Descargar CSV</a>'
+                        st.markdown(href, unsafe_allow_html=True)
+                    elif export_format == "Excel":
+                        excel_bytes = de.export_statistics_to_excel(summary_df_for_export, sheet_name="Resumen General")
+                        b64 = base64.b64encode(excel_bytes).decode()
+                        # ... (resto del enlace de descarga
+                        href = f'<a href="data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,{b64}" download="resumen_general_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx">Descargar Excel</a>'
+                        st.markdown(href, unsafe_allow_html=True)
+                    st.success(f"Resumen general exportado correctamente a {export_format}.")
+                except Exception as e:
+                    st.error(f"Error al exportar resumen: {str(e)}")
+            # Mostrar vista previa
+            #st.write("**Vista previa:**")
+            #st.dataframe(summary, use_container_width=True)
             
             # Opciones de exportación
-            export_format = st.radio(
+            """export_format = st.radio(
                 "Formato de exportación",
                 ["CSV", "Excel"],
                 horizontal=True,
@@ -198,7 +222,7 @@ def show_export_page(df):
                 try:
                     if export_format == "CSV":
                         # Exportar a CSV
-                        csv_data = de.export_statistics_to_csv(summary)
+                        csv_data = de.export_stats(summary)
                         
                         # Crear enlace de descarga
                         b64 = base64.b64encode(csv_data.encode('utf-8')).decode()
@@ -216,7 +240,7 @@ def show_export_page(df):
                     
                     st.success(f"Resumen general exportado correctamente a {export_format}. Haz clic en el enlace para descargar.")
                 except Exception as e:
-                    st.error(f"Error al exportar resumen: {str(e)}")
+                    st.error(f"Error al exportar resumen: {str(e)}")"""
         
         elif stats_type == "Estadísticas Descriptivas":
             # Seleccionar columnas para estadísticas
@@ -386,7 +410,7 @@ def show_export_page(df):
                 show_kde = st.checkbox("Mostrar curva KDE", value=True, key="export_hist_kde")
                 
                 # Generar histograma
-                fig = dv.create_histogram(data, col_to_viz, n_bins=n_bins, kde=show_kde)
+                fig = dv.create_histogram(data, col_to_viz, bins=n_bins, kde=show_kde)
                 
                 # Mostrar visualización
                 st.plotly_chart(fig, use_container_width=True)
@@ -440,9 +464,10 @@ def show_export_page(df):
                 
                 # Generar boxplot
                 if group_col:
-                    fig = dv.create_boxplot_by_category(data, group_col, col_to_viz)
+                    
+                    fig = dv.create_boxplot(data, x=group_col, y=col_to_viz)
                 else:
-                    fig = dv.create_boxplot(data, col_to_viz)
+                    fig = dv.create_boxplot(data, y=col_to_viz) 
                 
                 # Mostrar visualización
                 st.plotly_chart(fig, use_container_width=True)
@@ -502,7 +527,7 @@ def show_export_page(df):
                 )
                 
                 # Generar scatter
-                fig = dv.create_scatter(data, x_col, y_col, color_col=color_col)
+                fig = dv.create_scatter(data, x_col, y_col, color=color_col)
                 
                 # Mostrar visualización
                 st.plotly_chart(fig, use_container_width=True)
@@ -803,9 +828,9 @@ def show_export_page(df):
                 
                 # Generar violin plot
                 if group_col:
-                    fig = dv.create_violin_by_category(data, group_col, col_to_viz)
+                    fig = dv.create_violin(data, x=group_col, y=col_to_viz)
                 else:
-                    fig = dv.create_violin(data, col_to_viz)
+                    fig = dv.create_violin(data, y=col_to_viz)
                 
                 # Mostrar visualización
                 st.plotly_chart(fig, use_container_width=True)
@@ -1002,14 +1027,46 @@ def show_export_page(df):
                     }
                     
                     # Generar reporte
-                    pdf_bytes = de.generate_pdf_report(data, report_options)
+                    current_summary_data = da.get_data_summary(data) # El diccionario
+            
+                    # Para estadísticas descriptivas, necesitas decidir qué columnas incluir
+                    # Ejemplo: todas las numéricas
+                    numeric_cols_for_report = data.select_dtypes(include=np.number).columns.tolist()
+                    current_stats_data = da.get_descriptive_stats(data, numeric_cols_for_report) if numeric_cols_for_report else pd.DataFrame()
                     
+                    # Para visualizaciones, esto es lo más complejo.
+                    # Necesitas generar las figuras Plotly/Matplotlib basadas en viz_options
+                    current_visualizations_for_report = []
+                    if include_viz and viz_options:
+                    # Aquí lógica para iterar sobre viz_options y crear figuras con dv.create_...
+                    # Ejemplo muy básico:
+                        if "Histogramas de Variables Numéricas" in viz_options:
+                            num_cols = data.select_dtypes(include=np.number).columns
+                            for i, col_name in enumerate(num_cols):
+                                if i >= max_viz_per_type: break
+                                fig = dv.create_histogram(data, col_name) # Asegúrate que dv.create_histogram exista
+                                current_visualizations_for_report.append((f"Histograma de {col_name}", fig))
+                        # ... añadir más lógica para otros tipos de gráficos ...
+
+                    # Llama a la función renombrada con los datos preparados
+                    returned_value1, returned_value2, returned_value3= de.generate_pdf_report(
+                        df=data, # Pasar el DataFrame original también si es útil dentro del reporte
+                        summary=current_summary_data,
+                        stats=current_stats_data,
+                        visualizations=current_visualizations_for_report,
+                        #report_options_from_page=report_options # Pasar las opciones para que el reporte sepa qué incluir
+                    )
+                    pdf_bytes_val = returned_value1
+                    pdf_filename_val = returned_value2
+                    pdf_mimetype_val = returned_value3 
                     # Crear enlace de descarga
-                    b64 = base64.b64encode(pdf_bytes).decode()
-                    href = f'<a href="data:application/pdf;base64,{b64}" download="reporte_eda_{datetime.now().strftime("%Y%m%d_%H%M%S")}.pdf">Descargar Reporte PDF</a>'
+                    b64 = base64.b64encode(pdf_bytes_val).decode()
+                    
+                    href = f'<a href="data:{pdf_mimetype_val};base64,{b64}" download="{pdf_filename_val}">Descargar Reporte PDF</a>'
                     st.markdown(href, unsafe_allow_html=True)
                     
                     st.success("Reporte generado correctamente. Haz clic en el enlace para descargar.")
             except Exception as e:
                 st.error(f"Error al generar reporte: {str(e)}")
+                st.exception(e)
                 st.info("Nota: La generación de reportes PDF requiere que las bibliotecas ReportLab y WeasyPrint estén instaladas correctamente.")

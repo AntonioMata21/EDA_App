@@ -1,5 +1,5 @@
 import streamlit as st
-import polars as pl
+
 import pandas as pd
 import numpy as np
 import plotly.express as px
@@ -73,13 +73,13 @@ def show_analysis_page(df):
             analysis = analyze_column_distribution(df, selected_column)
             
             # Mostrar resultados según el tipo de columna
-            col_type = df.schema[selected_column]
+            col_type = df[selected_column].dtype
             
             # Dividir en columnas para mostrar información
             col1, col2 = st.columns([1, 1])
             
             # Análisis para columnas numéricas
-            dtype = df[col].dtype
+            dtype = df[selected_column].dtype
 
             if pd.api.types.is_numeric_dtype(dtype):
                 with col1:
@@ -97,7 +97,7 @@ def show_analysis_page(df):
                             round(analysis["skewness"], 4),
                             round(analysis["kurtosis"], 4),
                             analysis["null_count"],
-                            round(analysis["null_count"] / df.height * 100, 2)
+                            round(analysis["null_count"] / len(df) * 100, 2)
                         ]
                     })
                     st.dataframe(stats, use_container_width=True)
@@ -148,7 +148,7 @@ def show_analysis_page(df):
                             analysis["count"],
                             analysis["unique_values"],
                             analysis["null_count"],
-                            round(analysis["null_count"] / df.height * 100, 2)
+                            round(analysis["null_count"] / len(df) * 100, 2)
                         ]
                     })
                     st.dataframe(stats, use_container_width=True)
@@ -206,7 +206,7 @@ def show_analysis_page(df):
                             round(analysis["true_percent"], 2),
                             round(analysis["false_percent"], 2),
                             analysis["null_count"],
-                            round(analysis["null_count"] / df.height * 100, 2)
+                            round(analysis["null_count"] / len(df) * 100, 2)
                         ]
                     })
                     st.dataframe(stats, use_container_width=True)
@@ -234,7 +234,7 @@ def show_analysis_page(df):
                             analysis["min"],
                             analysis["max"],
                             analysis["null_count"],
-                            round(analysis["null_count"] / df.height * 100, 2)
+                            round(analysis["null_count"] / len(df) * 100, 2)
                         ]
                     }
                     
@@ -248,7 +248,7 @@ def show_analysis_page(df):
                 
                 with col2:
                     # Histograma de fechas
-                    pandas_df = df.select([selected_column])
+                    pandas_df = df[[selected_column]]
                     fig = px.histogram(
                         pandas_df,
                         x=selected_column,
@@ -287,7 +287,7 @@ def show_analysis_page(df):
         
         if len(numeric_cols) >= 2 and selected_numeric_cols:
             # Filtrar DataFrame para incluir solo las columnas seleccionadas
-            df_selected = df.select(selected_numeric_cols)
+            df_selected = df[selected_numeric_cols]
             
             # Calcular matriz de correlación
             corr_matrix = get_correlation_matrix(df_selected, method=corr_method)
@@ -377,8 +377,8 @@ def show_analysis_page(df):
             # Detectar outliers
             if detection_method == "IQR (Rango Intercuartil)":
                 # Calcular Q1, Q3 e IQR
-                q1 = float(df.get_column(selected_col).quantile(0.25))
-                q3 = float(df.get_column(selected_col).quantile(0.75))
+                q1 = float(df[selected_col].quantile(0.25))
+                q3 = float(df[selected_col].quantile(0.75))
                 iqr = q3 - q1
                 
                 # Definir límites
@@ -387,7 +387,7 @@ def show_analysis_page(df):
                 
                 # Identificar outliers
                 outliers_mask = (df[selected_col] < lower_bound) | (df[selected_col] > upper_bound)
-                outliers_df = df.filter(outliers_mask)
+                outliers_df = df[outliers_mask]
                 
                 # Mostrar información
                 st.write(f"**Límites para detección de outliers:**")
@@ -399,15 +399,15 @@ def show_analysis_page(df):
             
             else:  # Z-Score
                 # Calcular media y desviación estándar
-                mean_val = float(df.get_column(selected_col).mean())
-                std_val = float(df.get_column(selected_col).std())
+                mean_val = float(df[selected_col].mean())
+                std_val = float(df[selected_col].std())
                 
                 # Calcular Z-scores
-                z_scores = (df.get_column(selected_col) - mean_val) / std_val
+                z_scores = (df[selected_col] - mean_val) / std_val
                 
                 # Identificar outliers
                 outliers_mask = (z_scores.abs() > z_threshold)
-                outliers_df = df.filter(outliers_mask)
+                outliers_df = df[outliers_mask]
                 
                 # Mostrar información
                 st.write(f"**Parámetros para detección de outliers:**")
@@ -418,7 +418,7 @@ def show_analysis_page(df):
                 st.write(f"- Límite superior: {mean_val + z_threshold * std_val:.4f}")
             
             # Mostrar resultados
-            st.write(f"**Se encontraron {outliers_df.height} valores atípicos ({outliers_df.height / df.height * 100:.2f}% del total)**")
+            st.write(f"**Se encontraron {len(outliers_df)} valores atípicos ({len(outliers_df) / len(df) * 100:.2f}% del total)**")
             
             # Visualización
             col1, col2 = st.columns(2)
@@ -452,7 +452,7 @@ def show_analysis_page(df):
                 st.plotly_chart(fig, use_container_width=True, key="outlier_histogram_chart")
             
             # Mostrar outliers
-            if outliers_df.height > 0:
+            if len(outliers_df) > 0:
                 with st.expander("Ver valores atípicos"):
                     st.dataframe(outliers_df, use_container_width=True)
                     
